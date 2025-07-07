@@ -1,54 +1,81 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Barcode Scanner to Google Sheets</title>
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <script src="html5-qrcode.min.js"></script>
+  <title>Barcode Scanner</title>
+  <script src="https://unpkg.com/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
+  <script src="https://unpkg.com/@ericblade/quagga2@1.2.6/dist/quagga.min.js"></script>
+  <style>
+    #scanner-container {
+      width: 100%;
+      max-width: 400px;
+      margin: auto;
+      border: 2px solid #ccc;
+    }
+    #result {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 1.2em;
+    }
+  </style>
 </head>
 <body>
-  <h1>Scan Barcode</h1>
-
-  <div id="reader" style="width:300px;"></div>
-  <p id="result">Result will appear here</p>
+  <h2 align="center">Scan a Barcode</h2>
+  <div id="scanner-container"></div>
+  <p id="result">Waiting for scan...</p>
 
   <script>
+    const sheetAPI = "https://script.google.com/macros/s/AKfycbyyCsbaPghrYUrL3DKO1plSOEdZ_XoExHNAR3VjdraQPiEmHiTgGDdD8cOnpK7q_qId/exec";
 
-
-    const sheetAPI = "AKfycbyyCsbaPghrYUrL3DKO1plSOEdZ_XoExHNAR3VjdraQPiEmHiTgGDdD8cOnpK7q_qId"; // <-- Paste your Apps Script web app URL
-
-    function sendBarcode(barcode) {
+    function sendToSheet(code) {
       fetch(sheetAPI, {
         method: "POST",
-        body: JSON.stringify({ barcode: barcode }),
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ barcode: code })
       })
       .then(res => res.json())
-      .then(response => {
-        document.getElementById('result').innerText = 
-          `Success: ${barcode}`;
+      .then(data => {
+        document.getElementById("result").innerText = "Saved: " + code;
       })
       .catch(err => {
-        document.getElementById('result').innerText = 
-          `Error: ${err}`;
+        document.getElementById("result").innerText = "Error: " + err;
       });
     }
 
-    function onScanSuccess(decodedText) {
-      document.getElementById('result').innerText = `Scanned: ${decodedText}`;
-      sendBarcode(decodedText);
-    }
+    Quagga.init({
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: document.querySelector('#scanner-container'),
+        constraints: {
+          facingMode: "environment" // Rear camera
+        }
+      },
+      decoder: {
+        readers: [
+          "ean_reader",
+          "code_128_reader",
+          "upc_reader",
+          "upc_e_reader"
+        ]
+      },
+      locate: true
+    }, function(err) {
+      if (err) {
+        document.getElementById("result").innerText = "Init error: " + err;
+        return;
+      }
+      Quagga.start();
+    });
 
-    const html5QrCode = new Html5Qrcode("reader");
-    const qrCodeScannerConfig = { fps: 10, qrbox: 250 };
-
-    html5QrCode.start(
-      { facingMode: "environment" },
-      qrCodeScannerConfig,
-      onScanSuccess
-    ).catch(err => {
-      document.getElementById('result').innerText = `Error: ${err}`;
+    Quagga.onDetected(result => {
+      const code = result.codeResult.code;
+      document.getElementById("result").innerText = "Detected: " + code;
+      Quagga.stop(); // Stop after first scan
+      sendToSheet(code);
     });
   </script>
 </body>
 </html>
+
